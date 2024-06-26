@@ -44,8 +44,14 @@ class TrainedModel(Base):
 # Create the database tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
-# Function to insert raw data
+# Function to insert raw data with URL check
 def insert_raw_data(session, data):
+    # Check if URL already exists in the database
+    existing_data = session.query(RawCampaignData).filter_by(url=data['url']).first()
+    if existing_data:
+        print(f"URL {data['url']} already exists in the database. Skipping insertion.")
+        return False
+
     new_data = RawCampaignData(
         url=data['url'],
         goal_amount=data['goal_amount'],
@@ -54,6 +60,7 @@ def insert_raw_data(session, data):
     )
     session.add(new_data)
     session.commit()
+    return True
 
 # Function to verify database connection
 if __name__ == "__main__":
