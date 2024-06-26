@@ -1,26 +1,19 @@
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
 import joblib
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
 
-def train_model(X_train, y_train):
-    """Train the model."""
-    model = LinearRegression()
+def train_model(X, y):
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Train the model
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
+    
     return model
 
-if __name__ == "__main__":
-    # Load the training data
-    X_train = pd.read_csv('data/preprocessing/X_train.csv')
-    y_train = pd.read_csv('data/preprocessing/y_train.csv')
+def save_model(model, model_path):
+    joblib.dump(model, model_path)
 
-    # Train the model
-    model = train_model(X_train, y_train)
-
-    # Save the trained model to a file
-    joblib.dump(model, 'models/training/model.joblib')
-
-    # Optionally, you can print the training error
-    y_train_pred = model.predict(X_train)
-    train_error = mean_squared_error(y_train, y_train_pred)
-    print(f'Training Error (MSE): {train_error}')
+def load_model(model_path):
+    return joblib.load(model_path)

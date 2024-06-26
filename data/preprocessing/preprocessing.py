@@ -11,25 +11,22 @@ def fetch_raw_data(session):
     raw_data = session.query(RawCampaignData).all()
     return raw_data
 
-def preprocess_data(raw_data):
-    """Clean and transform the raw data."""
-    data = [{
-        'url': d.url,
-        'goal_amount': d.goal_amount,
-        'pledged_amount': d.pledged_amount,
-        'backers': d.backers
-    } for d in raw_data]
+def preprocess_data(raw_data_df):
+    # Example preprocessing steps
+    processed_data = []
 
-    df = pd.DataFrame(data)
-    
-    # Example preprocessing steps:
-    # 1. Handle missing values
-    df.fillna(0, inplace=True)
-    
-    # 2. Feature engineering (if needed)
-    df['success_rate'] = df['pledged_amount'] / df['goal_amount']
-    
-    return df
+    for index, row in raw_data_df.iterrows():
+        processed_data.append({
+            'url': row['url'],
+            'goal_amount': row['goal_amount'],
+            'pledged_amount': row['pledged_amount'],
+            'backers': row['backers'],
+            'feature_1': row['goal_amount'] / row['backers'] if row['backers'] > 0 else 0,
+            'feature_2': row['pledged_amount'] / row['goal_amount'] if row['goal_amount'] > 0 else 0
+        })
+
+    processed_data_df = pd.DataFrame(processed_data)
+    return processed_data_df
 
 if __name__ == "__main__":
     raw_data = fetch_raw_data(session)
