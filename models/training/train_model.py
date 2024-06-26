@@ -1,30 +1,26 @@
-import joblib
-from sqlalchemy import create_engine
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+import joblib
 
-engine = create_engine('postgresql://dbuser:password@localhost/mydatabase')
-
-def train_model():
-    processed_data = pd.read_sql_table('processed_campaign_data', engine)
-    
-    # Example: training a simple linear regression model
+def train_model(X_train, y_train):
+    """Train the model."""
     model = LinearRegression()
-    model.fit(processed_data[['goal_amount', 'backers']], processed_data['pledged_amount'])
-    
-    # Save the model to a binary string
-    model_blob = joblib.dumps(model)
-    
-    # Insert the model into the database
-    conn = engine.raw_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO trained_models (model_type, model_blob)
-        VALUES (%s, %s)
-    """, ('Linear Regression', model_blob))
-    conn.commit()
-    cur.close()
-    conn.close()
+    model.fit(X_train, y_train)
+    return model
 
 if __name__ == "__main__":
-    train_model()
+    # Load the training data
+    X_train = pd.read_csv('data/preprocessing/X_train.csv')
+    y_train = pd.read_csv('data/preprocessing/y_train.csv')
+
+    # Train the model
+    model = train_model(X_train, y_train)
+
+    # Save the trained model to a file
+    joblib.dump(model, 'models/training/model.joblib')
+
+    # Optionally, you can print the training error
+    y_train_pred = model.predict(X_train)
+    train_error = mean_squared_error(y_train, y_train_pred)
+    print(f'Training Error (MSE): {train_error}')

@@ -1,16 +1,41 @@
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from data.database import engine, RawCampaignData
 
-engine = create_engine('postgresql://dbuser:password@localhost/mydatabase')
+# Set up the database session
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+session = SessionLocal()
 
-def process_data():
-    raw_data = pd.read_sql_table('raw_campaign_data', engine)
-    processed_data = raw_data.copy()
+def fetch_raw_data(session):
+    """Fetch raw campaign data from the database."""
+    raw_data = session.query(RawCampaignData).all()
+    return raw_data
+
+def preprocess_data(raw_data):
+    """Clean and transform the raw data."""
+    data = [{
+        'url': d.url,
+        'goal_amount': d.goal_amount,
+        'pledged_amount': d.pledged_amount,
+        'backers': d.backers
+    } for d in raw_data]
+
+    df = pd.DataFrame(data)
     
-    # Example processing: adding a success_rate column
-    processed_data['success_rate'] = processed_data['pledged_amount'] / processed_data['goal_amount']
+    # Example preprocessing steps:
+    # 1. Handle missing values
+    df.fillna(0, inplace=True)
     
-    processed_data.to_sql('processed_campaign_data', engine, if_exists='replace', index=False)
+    # 2. Feature engineering (if needed)
+    df['success_rate'] = df['pledged_amount'] / df['goal_amount']
+    
+    return df
 
 if __name__ == "__main__":
-    process_data()
+    raw_data = fetch_raw_data(session)
+    preprocessed_data = preprocess_data(raw_data)
+    
+    # Save preprocessed data to CSV for later use
+    preprocessed_data.to_csv('data/preprocessing/preprocessed_data.csv', index=False)
+    
+    session.close()
