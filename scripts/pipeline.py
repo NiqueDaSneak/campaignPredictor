@@ -1,98 +1,109 @@
 import sys
 import os
 import pandas as pd
+import json
 
-# Add the project root directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from urllib.parse import urlparse
-from data.scraping.kickstarter_scraper import scrape_kickstarter
-from data.database import insert_raw_data, SessionLocal, engine
+from data.s3_utils import upload_file_to_s3, download_file_from_s3
 from data.preprocessing.preprocessing import preprocess_data
-from models.training.train_model import train_model, save_model, load_model
-from predict.predict import make_predictions
+from data.scraping.kickstarter_scraper import scrape_kickstarter
 
-def read_urls(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-    urls = [line.strip() for line in lines if line.strip() and not line.strip().startswith('#')]
+BUCKET_NAME = "bucket-for-crowd-ai"
+
+def load_urls(file_path):
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    urls = []
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) == 2:
+            urls.append((parts[0], parts[1].lower() == 'true'))
+        else:
+            urls.append((parts[0], False))
     return urls
 
-def mark_url_processed(file_path, url):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-    
-    with open(file_path, 'w') as file:
-        for line in lines:
-            if line.strip() == url:
-                file.write(f'# {line.strip()} (processed)\n')
-            else:
-                file.write(line)
+def save_urls(file_path, urls):
+    with open(file_path, 'w') as f:
+        for url, processed in urls:
+            f.write(f"{url} {processed}\n")
 
-def clean_url(url):
-    parsed_url = urlparse(url)
-    return f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+def check_if_data_exists(url):
+    file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.json"
+    try:
+        download_file_from_s3(BUCKET_NAME, file_name)
+        return True
+    except Exception as e:
+        return False
 
 def main(urls_file):
-    urls = read_urls(urls_file)
+    urls = load_urls(urls_file)
 
-    session = SessionLocal()
+    all_project_data = []
+    updated_urls = []
 
-    for url in urls:
-        cleaned_url = clean_url(url)
-        
-        # Step 1: Scrape Kickstarter data
-        print(f"Scraping Kickstarter data for URL: {cleaned_url}")
-        project_data = scrape_kickstarter(cleaned_url)
-        print("Data scraped:", project_data)
+    for url, processed in urls:
+        if processed:
+            updated_urls.append((url, processed))
+            continue
 
-        # Step 2: Insert scraped data into the database
-        print("Inserting data into the database...")
+        # Check if data already exists in S3
+        if check_if_data_exists(url):
+            print(f"Data already exists for URL: {url}")
+            updated_urls.append((url, True))
+            continue
+
+        # Scrape Kickstarter data
+        print(f"Scraping data for URL: {url}")
         try:
-            if not insert_raw_data(session, project_data):
-                print(f"Data for URL {cleaned_url} already exists in the database.")
-                mark_url_processed(urls_file, url)
-                continue
-            mark_url_processed(urls_file, url)
+            project_data = scrape_kickstarter(url)
         except Exception as e:
-            print(f"Error inserting data for URL {cleaned_url}: {e}")
+            print(f"Failed to scrape URL {url}: {e}")
+            updated_urls.append((url, False))
+            continue
 
-    session.close()
+        if not project_data:
+            print(f"No data found for URL: {url}")
+            updated_urls.append((url, False))
+            continue
+        
+        all_project_data.append(project_data)
+        updated_urls.append((url, True))
 
-    # Step 3: Preprocess the data
-    print("Preprocessing data...")
-    session = SessionLocal()
-    raw_data_df = pd.read_sql("SELECT * FROM raw_campaign_data", con=engine)
+        # Save the scraped data to a file
+        file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.json"
+        with open(file_name, 'w') as f:
+            json.dump([project_data], f)
+        
+        # Upload the scraped data to S3
+        upload_file_to_s3(file_name, BUCKET_NAME)
+    
+    if not all_project_data:
+        print("No new data found for any URLs.")
+        return
+
+    # Save the raw data to S3
+    raw_data_file_name = "raw_data.json"
+    with open(raw_data_file_name, 'w') as f:
+        json.dump(all_project_data, f)
+    upload_file_to_s3(raw_data_file_name, BUCKET_NAME)
+    print("Raw data uploaded to S3.")
+
+    # Preprocess data
+    raw_data_df = pd.DataFrame(all_project_data)
     processed_data_df = preprocess_data(raw_data_df)
-    processed_data_df.to_sql("processed_campaign_data", con=engine, if_exists="replace", index=False)
+    processed_file_name = "processed_data.csv"
+    processed_data_df.to_csv(processed_file_name, index=False)
+    upload_file_to_s3(processed_file_name, BUCKET_NAME)
+    print("Processed data uploaded to S3.")
+
+    save_urls(urls_file, updated_urls)
+    print("URLs file updated.")
+
+    # Skip the training and prediction steps for now
     print("Data preprocessed and saved to the database.")
-    session.close()
-
-    # Prepare features (X) and target (y) for training
-    X = processed_data_df.drop(columns=["pledged_amount", "url"])  # Exclude 'url' from features
-    y = processed_data_df["pledged_amount"]
-
-    # Step 4: Train the model
-    print("Training model...")
-    model = train_model(X, y)
-    model_path = "models/training/model.joblib"
-    save_model(model, model_path)
-    print(f"Model trained and saved to {model_path}")
-
-    # Step 5: Make predictions
-    print("Making predictions...")
-    model = load_model(model_path)
-    predictions = make_predictions(model, X)
-    print("Predictions:", predictions)
-
-    # Optionally save predictions
-    predictions_df = pd.DataFrame(predictions, columns=["Prediction"])
-    predictions_df.to_csv("predictions.csv", index=False)
-    print("Predictions saved to predictions.csv")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python pipeline.py <URLs_File_Path>")
+        print("Usage: python pipeline.py <urls_file>")
         sys.exit(1)
 
     urls_file = sys.argv[1]

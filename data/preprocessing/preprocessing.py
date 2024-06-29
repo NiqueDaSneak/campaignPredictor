@@ -11,22 +11,20 @@ def fetch_raw_data(session):
     raw_data = session.query(RawCampaignData).all()
     return raw_data
 
-def preprocess_data(raw_data_df):
-    # Example preprocessing steps
+import pandas as pd
+
+def preprocess_data(df):
     processed_data = []
-
-    for index, row in raw_data_df.iterrows():
+    
+    for index, row in df.iterrows():
         processed_data.append({
-            'url': row['url'],
-            'goal_amount': row['goal_amount'],
-            'pledged_amount': row['pledged_amount'],
-            'backers': row['backers'],
-            'feature_1': row['goal_amount'] / row['backers'] if row['backers'] > 0 else 0,
-            'feature_2': row['pledged_amount'] / row['goal_amount'] if row['goal_amount'] > 0 else 0
+            'url': row.get('url', ''),
+            'goal_amount': row.get('goal_amount', 0.0),
+            'pledged_amount': row.get('pledged_amount', 0.0),
+            'backers': row.get('backers', 0)
         })
-
-    processed_data_df = pd.DataFrame(processed_data)
-    return processed_data_df
+    
+    return pd.DataFrame(processed_data)
 
 if __name__ == "__main__":
     raw_data = fetch_raw_data(session)
