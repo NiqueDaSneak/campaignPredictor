@@ -1,6 +1,3 @@
-<<<<<<< Updated upstream
-=======
-
 # Kickstarter Campaign Data Scraper
 
 ## Overview
