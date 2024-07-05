@@ -6,7 +6,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from data.s3_utils import upload_file_to_s3
 from selenium.common.exceptions import NoSuchElementException
 
 def scrape_kickstarter(url):
@@ -27,35 +26,73 @@ def scrape_kickstarter(url):
         
         # Extracting backers
         backers = driver.find_element(By.XPATH, "//div[contains(@class, 'grid-col-12')]/div[contains(@class, 'flex-column-lg')]/div[2]/div/span").text
-        
+
+        # Additional content scraping (e.g., story)
+        story_content = driver.find_element(By.CSS_SELECTOR, 'div.story-content').text
+
         project_data = {
             'url': url,
             'goal_amount': float(goal.replace('$', '').replace(',', '')) if goal else 0.0,
             'pledged_amount': float(pledged.replace('$', '').replace(',', '')),
-            'backers': int(backers.replace(',', ''))
+            'backers': int(backers.replace(',', '')),
+            'story_content': story_content  # Add this line
         }
     except NoSuchElementException as e:
-        print(f"Error scraping URL {url}: {e}")
+        print(f"Error scraping URL {url}: {e}", file=sys.stderr)
         project_data = None
     
     driver.quit()
     return project_data
 
+def load_urls(file_path):
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    urls = []
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) == 2:
+            urls.append((parts[0], parts[1].lower() == 'true'))
+        else:
+            urls.append((parts[0], False))
+    return urls
+
+def save_urls(file_path, urls):
+    with open(file_path, 'w') as f:
+        for url, processed in urls:
+            f.write(f"{url} {processed}\n")
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python kickstarter_scraper.py <URL>")
+        print("Usage: python kickstarter_scraper.py <urls_file>")
         sys.exit(1)
     
-    url = sys.argv[1]
-    project_data = scrape_kickstarter(url)
-    
-    if project_data:
-        # Save to JSON file
-        with open('scraped_data.json', 'w') as f:
-            json.dump([project_data], f)
+    urls_file = sys.argv[1]
+    urls = load_urls(urls_file)
+    updated_urls = []
+
+    # Ensure the directory for scraped data exists
+    if not os.path.exists("data/scraped_data"):
+        os.makedirs("data/scraped_data")
+
+    for url, processed in urls:
+        if processed:
+            updated_urls.append((url, processed))
+            continue
+
+        print(f"Scraping data for URL: {url}")
+        project_data = scrape_kickstarter(url)
         
-        # Print data to confirm it
-        print(json.dumps(project_data, indent=4))
-        
-        # Upload to S3
-        upload_file_to_s3('scraped_data.json', 'bucket-for-crowd-ai')
+        if project_data:
+            # Save to JSON file
+            file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.json"
+            with open(f"data/scraped_data/{file_name}", 'w') as f:
+                json.dump(project_data, f)
+            
+            # Print data to confirm it
+            print(json.dumps(project_data, indent=4))
+            
+            updated_urls.append((url, True))
+        else:
+            updated_urls.append((url, False))
+
+    save_urls(urls_file, updated_urls)

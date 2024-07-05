@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    image: campaignpredictor:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=us-east-2
+      - PYTHONPATH=/app
+    command: python scripts/pipeline.py data/urls.txt
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    platform: linux/amd64
