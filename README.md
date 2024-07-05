@@ -11,26 +11,6 @@ Before you begin, ensure you have the following installed on your machine:
 - Docker Compose
 - AWS CLI configured with appropriate credentials
 
-## Project Structure
-
-campaignPredictor/
-│
-├── data/
-│ ├── preprocessing/
-│ │ └── preprocessing.py
-│ ├── s3_utils.py
-│ └── scraping/
-│ └── kickstarter_scraper.py
-├── scripts/
-│ └── pipeline.py
-├── api/
-│ └── requirements.txt
-├── docker-compose.yml
-└── Dockerfile
-
-bash
-Copy code
-
 ## Setup
 
 ### 1. Clone the Repository
@@ -41,7 +21,6 @@ cd campaignPredictor
 ```
 ### 2. Setup Virtual Environment
 ```sh
-Copy code
 python3 -m venv venv
 source venv/bin/activate
 pip install -r api/requirements.txt
