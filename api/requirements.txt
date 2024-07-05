@@ -5,3 +5,5 @@ scikit-learn
 beautifulsoup4
 requests
 sqlalchemy
+boto3
+psycopg2

@@ -25,7 +25,7 @@ This project scrapes Kickstarter campaign data, preprocesses it, and stores the 
 
 3. **Install dependencies:**
    ```sh
-   pip install -r requirements.txt
+   pip3 install -r api/requirements.txt
    ```
 
 4. **Configure AWS CLI:**
@@ -43,7 +43,7 @@ This project scrapes Kickstarter campaign data, preprocesses it, and stores the 
 
 2. **Run the pipeline:**
    ```sh
-   python scripts/pipeline.py data/urls.txt
+   python3 scripts/pipeline.py data/urls.txt
    ```
 
 ### Development Setup for VSCode
