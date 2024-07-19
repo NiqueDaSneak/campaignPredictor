@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 def scrape_kickstarter(url):
     options = Options()
@@ -14,33 +14,55 @@ def scrape_kickstarter(url):
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     driver.get(url)
     
-    try:
-        # Extracting pledged amount
-        pledged = driver.find_element(By.CSS_SELECTOR, 'span.ksr-green-500').text
-        
-        # Extract all elements with class 'money' and print their text
-        goal_elements = driver.find_elements(By.CSS_SELECTOR, 'span.money')
-        
-        # Select the correct element with the goal amount (assuming it's the second element)
-        goal = goal_elements[1].text if len(goal_elements) > 1 else ""
-        
-        # Extracting backers
-        backers = driver.find_element(By.XPATH, "//div[contains(@class, 'grid-col-12')]/div[contains(@class, 'flex-column-lg')]/div[2]/div/span").text
+    def extract_data():
+        try:
+            # Try primary selectors first
+            pledged_element = driver.find_element(By.CSS_SELECTOR, 'div.col-right.col-4.py3.border-left.spotlight-project-video-archive > div.mb3 > h3.mb0 > span.money')
+            pledged = pledged_element.text.replace('$', '').replace(',', '').strip()
 
-        # Additional content scraping (e.g., story)
-        story_content = driver.find_element(By.CSS_SELECTOR, 'div.story-content').text
+            goal_element = driver.find_element(By.CSS_SELECTOR, 'div.type-12.medium.navy-500 > span.money')
+            goal = goal_element.text.replace('$', '').replace(',', '').strip()
+            
+            backers_element = driver.find_element(By.CSS_SELECTOR, 'div.mb0 > h3.mb0')
+            backers = backers_element.text.replace(',', '').strip()
 
-        project_data = {
-            'url': url,
-            'goal_amount': float(goal.replace('$', '').replace(',', '')) if goal else 0.0,
-            'pledged_amount': float(pledged.replace('$', '').replace(',', '')),
-            'backers': int(backers.replace(',', '')),
-            'story_content': story_content  # Add this line
-        }
-    except NoSuchElementException as e:
-        print(f"Error scraping URL {url}: {e}", file=sys.stderr)
-        project_data = None
-    
+            story_content_element = driver.find_element(By.CSS_SELECTOR, 'div.story-content')
+            story_content = story_content_element.text.strip()
+
+            return {
+                'url': url,
+                'goal_amount': float(goal) if goal else None,
+                'pledged_amount': float(pledged) if pledged else None,
+                'backers': int(backers) if backers else None,
+                'story_content': story_content
+            }
+        except NoSuchElementException:
+            try:
+                # Try alternative selectors
+                pledged_element = driver.find_element(By.CSS_SELECTOR, 'div.grid-col-12.grid-col-4-md.hide.block-lg span.ksr-green-500')
+                pledged = pledged_element.text.replace('$', '').replace(',', '').strip()
+
+                goal_element = driver.find_element(By.CSS_SELECTOR, 'div.grid-col-12.grid-col-4-md.hide.block-lg span.money')
+                goal = goal_element.text.replace('$', '').replace(',', '').strip()
+                
+                backers_element = driver.find_element(By.CSS_SELECTOR, 'div.grid-col-12.grid-col-4-md.hide.block-lg div.type-16.type-28-md.bold.dark-grey-500 > span')
+                backers = backers_element.text.replace(',', '').strip()
+
+                story_content_element = driver.find_element(By.CSS_SELECTOR, 'div.story-content')
+                story_content = story_content_element.text.strip()
+
+                return {
+                    'url': url,
+                    'goal_amount': float(goal) if goal else None,
+                    'pledged_amount': float(pledged) if pledged else None,
+                    'backers': int(backers) if backers else None,
+                    'story_content': story_content
+                }
+            except NoSuchElementException as e:
+                print(f"Error scraping URL {url} with both primary and fallback selectors: {e}", file=sys.stderr)
+                return None
+
+    project_data = extract_data()
     driver.quit()
     return project_data
 
