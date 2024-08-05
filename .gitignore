@@ -150,3 +150,7 @@ predictions.csv
 
 data/urls.txt
 .DS_Store
+node_modules
+.gitignore
+api/venv_api
+urls.txt

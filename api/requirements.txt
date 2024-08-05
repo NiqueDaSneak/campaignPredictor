@@ -1,9 +1,0 @@
-Flask
-joblib
-pandas
-scikit-learn
-beautifulsoup4
-requests
-sqlalchemy
-boto3
-psycopg2-binary

@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -60,33 +61,33 @@ def load_urls(file_path):
     urls = []
     for line in lines:
         parts = line.strip().split()
-        if len(parts) == 2:
-            urls.append((parts[0], parts[1].lower() == 'true'))
+        if len(parts) == 3:
+            urls.append((parts[0], parts[1].lower() == 'true', parts[2].lower() == 'true'))
         else:
-            urls.append((parts[0], False))
+            urls.append((parts[0], False, False))
     return urls
 
 def save_urls(file_path, urls):
     with open(file_path, 'w') as f:
-        for url, processed in urls:
-            f.write(f"{url} {processed}\n")
+        for url, scraped, uploaded in urls:
+            f.write(f"{url} {scraped} {uploaded}\n")
+
+def save_to_csv(data, file_path):
+    df = pd.DataFrame([data])
+    df.to_csv(file_path, index=False)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python indiegogo_scraper.py <urls_file>")
-        sys.exit(1)
-    
-    urls_file = sys.argv[1]
+    urls_file = 'urls.txt'
     urls = load_urls(urls_file)
     updated_urls = []
 
     # Ensure the directory for scraped data exists
-    if not os.path.exists("data/scraped_data"):
-        os.makedirs("data/scraped_data")
+    if not os.path.exists("../../data/scraped_data"):
+        os.makedirs("../../data/scraped_data")
 
-    for url, processed in urls:
-        if processed:
-            updated_urls.append((url, processed))
+    for url, scraped, uploaded in urls:
+        if scraped:
+            updated_urls.append((url, scraped, uploaded))
             continue
 
         print(f"Scraping data for URL: {url}")
@@ -94,15 +95,19 @@ if __name__ == "__main__":
         
         if project_data:
             # Save to JSON file
-            file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.json"
-            with open(f"data/scraped_data/{file_name}", 'w') as f:
+            json_file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.json"
+            with open(f"../../data/scraped_data/{json_file_name}", 'w') as f:
                 json.dump(project_data, f)
+            
+            # Save to CSV file
+            csv_file_name = f"scraped_data_{url.replace('https://', '').replace('/', '_')}.csv"
+            save_to_csv(project_data, f"../../data/scraped_data/{csv_file_name}")
             
             # Print data to confirm it
             print(json.dumps(project_data, indent=4))
             
-            updated_urls.append((url, True))
+            updated_urls.append((url, True, uploaded))
         else:
-            updated_urls.append((url, False))
+            updated_urls.append((url, scraped, uploaded))
 
     save_urls(urls_file, updated_urls)

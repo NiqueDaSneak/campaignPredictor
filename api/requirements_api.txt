@@ -1,0 +1,7 @@
+Flask
+Flask-Cors
+textstat
+vaderSentiment
+transformers
+torch
+tf-keras
