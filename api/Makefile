@@ -17,6 +17,9 @@ install: venv
 	# Activate the virtual environment and install dependencies
 	@echo "Activating the virtual environment and installing dependencies"
 	. $(VENV_DIR)/bin/activate && pip install -r requirements_api.txt
+	# Download the SpaCy model
+	@echo "Downloading SpaCy model 'en_core_web_sm'"
+	. $(VENV_DIR)/bin/activate && python -m spacy download en_core_web_sm
 
 run:
 	# Activate the virtual environment, set environment variables, and run the Flask server

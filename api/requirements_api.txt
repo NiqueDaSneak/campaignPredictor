@@ -5,3 +5,6 @@ vaderSentiment
 transformers
 torch
 tf-keras
+spacy 
+openai
+requests
