@@ -1,24 +1,27 @@
 from flask import Blueprint, request, jsonify
-from .utils.scoring import score_heading, score_subheading
+from .utils.scoring import generate_score, generate_nuanced_feedback
 
 main = Blueprint('main', __name__)
 
 @main.route('/process', methods=['POST'])
 def process_data():
     data = request.json
-    print(f"Received data: {data}")  # Add logging to see received data
+    print(f"Received data: {data}")  
     data_type = data.get('dataType')
     data_body = data.get('dataBody')
+    categories = data.get('categories', '').split(',')
 
     # Perform content scoring based on dataType
     if data_type and data_body:
-        if data_type == 'heading':
-            score = score_heading(data_body)
-        elif data_type == 'subheading':
-            score = score_subheading(data_body)
-        else:
-            return jsonify({'error': 'Invalid dataType'}), 400
+        score_result = generate_score(data_body, categories, data_type)
 
-        return jsonify({'score': score}), 200
+        response = {
+            'quality': score_result['quality'],
+            'recommendations': score_result['recommendations'],
+            'nuanced_feedback': score_result['nuanced_feedback'],
+            'final_score': score_result['final_score']
+        }
+
+        return jsonify(response), 200
     else:
         return jsonify({'error': 'Invalid input'}), 400
